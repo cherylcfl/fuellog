@@ -2,6 +2,7 @@ import os
 import logging
 from datetime import datetime, time
 import pytz
+import httpx
 
 from telegram import Update
 from telegram.ext import (
@@ -15,7 +16,7 @@ from db import (
     undo_last_meal, undo_last_workout, clear_today,
     save_oura_token, get_oura_token, get_all_active_users
 )
-from ai import parse_meal, parse_workout, looks_like_workout, looks_like_question, answer_question
+from ai import parse_meal, parse_workout, looks_like_workout, looks_like_question, answer_question, parse_meal_from_photo
 from oura import get_oura_calories
 
 logging.basicConfig(level=logging.INFO)
@@ -59,9 +60,15 @@ def format_summary(totals: dict, meals: list, workouts: list, title="📊 Today'
         f"✅ {abs(round(diff))} kcal remaining"
     )
 
-    # Meals list
-    meal_lines = ""
+    # Meals list — deduplicate by id to prevent display repeats
+    seen_ids = set()
+    unique_meals = []
     for m in meals:
+        if m["id"] not in seen_ids:
+            seen_ids.add(m["id"])
+            unique_meals.append(m)
+    meal_lines = ""
+    for m in unique_meals:
         meal_lines += f"\n  • {m['food_name']} — {round(m['calories'])}kcal"
 
     # Workouts list
@@ -291,7 +298,7 @@ async def handle_question(update, context, text, user_id):
         workouts = get_today_workouts(user_id)
         totals = get_today_totals(user_id)
         reply = await answer_question(text, meals, workouts, totals, DAILY_TARGETS, ANTHROPIC_API_KEY)
-        await thinking.edit_text(reply, parse_mode="Markdown")
+        await thinking.edit_text(reply)
     except Exception as e:
         logger.error(f"Question handler error: {e}")
         await thinking.edit_text("❌ Couldn't answer that right now. Try again!")
@@ -400,6 +407,65 @@ async def send_daily_summary(context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Failed to send summary to {user_id}: {e}")
 
 
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    caption = update.message.caption or ""
+    thinking = await update.message.reply_text("📸 Analysing your meal...")
+
+    try:
+        # Get the highest resolution photo
+        photo = update.message.photo[-1]
+        file = await context.bot.get_file(photo.file_id)
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(file.file_path)
+            image_bytes = resp.content
+
+        meals_parsed = await parse_meal_from_photo(image_bytes, "image/jpeg", caption, ANTHROPIC_API_KEY)
+    except Exception as e:
+        logger.error(f"Photo parse error: {e}")
+        await thinking.edit_text("❌ Couldn't identify the food. Try typing it out instead!")
+        return
+
+    if not meals_parsed:
+        await thinking.edit_text("❌ Couldn't identify any food in that photo. Try a clearer shot or type it out!")
+        return
+
+    for meal in meals_parsed:
+        log_meal(user_id, meal)
+
+    totals = get_today_totals(user_id)
+    net = totals["net_calories"]
+    burned = totals["burned"]
+    over = net > DAILY_TARGETS["calories"]
+    remaining = DAILY_TARGETS["calories"] - net
+
+    items_text = ""
+    this_cal = this_pro = this_carbs = this_fat = 0
+    for m in meals_parsed:
+        items_text += f"\n• {m['food_name']}: {round(m['calories'])}kcal | P:{m['protein']}g C:{m['carbs']}g F:{m['fat']}g"
+        this_cal += m["calories"]
+        this_pro += m["protein"]
+        this_carbs += m["carbs"]
+        this_fat += m["fat"]
+
+    burned_note = f"\n_(Includes +{round(burned)} kcal workout bonus)_" if burned > 0 else ""
+    status_line = (
+        f"⚠️ *OVER by {abs(round(remaining))} kcal!* Try to keep dinner light."
+        if over else
+        f"✅ *{round(remaining)} kcal remaining* today"
+    )
+
+    await thinking.edit_text(
+        f"📸 *Photo logged!*{items_text}\n\n"
+        f"*This meal:* {round(this_cal)} kcal | P:{round(this_pro)}g C:{round(this_carbs)}g F:{round(this_fat)}g\n\n"
+        f"*Net today:* {round(net)} / {DAILY_TARGETS['calories']} kcal{burned_note}\n"
+        f"{status_line}\n\n"
+        f"_Not accurate? Use /undo and type it out instead._",
+        parse_mode="Markdown"
+    )
+
+
 def main():
     init_db()
 
@@ -414,6 +480,7 @@ def main():
     app.add_handler(CommandHandler("oura", oura_cmd))
     app.add_handler(CommandHandler("sync", sync_cmd))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
     tz = pytz.timezone(TIMEZONE)
     summary_time = time(hour=SUMMARY_HOUR, minute=0, tzinfo=tz)
