@@ -291,7 +291,7 @@ async def handle_question(update, context, text, user_id):
         workouts = get_today_workouts(user_id)
         totals = get_today_totals(user_id)
         reply = await answer_question(text, meals, workouts, totals, DAILY_TARGETS, ANTHROPIC_API_KEY)
-        await thinking.edit_text(reply)
+        await thinking.edit_text(reply, parse_mode="Markdown")
     except Exception as e:
         logger.error(f"Question handler error: {e}")
         await thinking.edit_text("❌ Couldn't answer that right now. Try again!")
