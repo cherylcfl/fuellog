@@ -69,17 +69,86 @@ async def parse_workout(text: str, api_key: str) -> dict:
     return json.loads(raw)
 
 
+async def parse_meal_from_photo(image_bytes: bytes, mime_type: str, caption: str, api_key: str) -> list[dict]:
+    import base64
+    image_b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
+
+    prompt = (
+        f"The user sent a photo of their meal{f' with caption: {caption}' if caption else ''}. "
+        "Identify all visible food items and estimate macros for each."
+    )
+
+    async with httpx.AsyncClient(timeout=45) as client:
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 1000,
+                "system": MEAL_SYSTEM_PROMPT,
+                "messages": [{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": mime_type,
+                                "data": image_b64,
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": prompt,
+                        }
+                    ]
+                }],
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    raw = data["content"][0]["text"].strip()
+    raw = raw.replace("```json", "").replace("```", "").strip()
+    return json.loads(raw)
+
+
+import re
+
 WORKOUT_KEYWORDS = [
     "run", "ran", "walk", "walked", "gym", "workout", "exercise", "swim", "swam",
     "cycle", "cycling", "hiit", "yoga", "pilates", "cardio", "weights", "lifting",
-    "training", "jog", "jogged", "class", "zumba", "crossfit", "spin", "rowing",
-    "climbed", "stairs", "min ", "mins ", "minutes", "hour", "km", "miles", "kg"
+    "training", "jog", "jogged", "zumba", "crossfit", "spin", "rowing",
+    "climbed", "stairs", "km", "miles",
 ]
+
+# These only count as workout if they appear as whole words
+WORKOUT_WORD_KEYWORDS = [
+    "run", "ran", "walk", "walked", "swim", "swam", "jog", "jogged",
+    "gym", "workout", "exercise", "cycle", "cycling", "cardio",
+    "weights", "lifting", "training", "hiit", "yoga", "pilates",
+    "zumba", "crossfit", "spin", "rowing",
+]
+
+# These require a number before them to count
+WORKOUT_UNIT_KEYWORDS = ["min", "mins", "minutes", "hour", "hours", "km", "miles", "steps"]
 
 
 def looks_like_workout(text: str) -> bool:
     lower = text.lower()
-    return any(kw in lower for kw in WORKOUT_KEYWORDS)
+    # Check whole-word workout keywords
+    for kw in WORKOUT_WORD_KEYWORDS:
+        if re.search(rf"\b{re.escape(kw)}\b", lower):
+            return True
+    # Check unit keywords only when preceded by a number (e.g. "30 min", "5km")
+    for kw in WORKOUT_UNIT_KEYWORDS:
+        if re.search(rf"\d+\s*{re.escape(kw)}\b", lower):
+            return True
+    return False
 
 
 QUESTION_KEYWORDS = [
@@ -102,7 +171,7 @@ async def answer_question(question: str, meals: list, workouts: list, totals: di
                            targets: dict, api_key: str) -> str:
     # Build a context summary of the user's day
     meal_lines = "\n".join(
-        f"  - {m['food_name']}: {round(m['calories'])}kcal, Protein: {m['protein']}g, Carbs :{m['carbs']}g, Fat :{m['fat']}g"
+        f"  - {m['food_name']}: {round(m['calories'])}kcal, P:{m['protein']}g, C:{m['carbs']}g, F:{m['fat']}g"
         for m in meals
     ) or "  (nothing logged yet)"
 
