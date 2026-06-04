@@ -47,7 +47,7 @@ async def _call_claude(system: str, user_text: str, api_key: str) -> str:
                 "content-type": "application/json",
             },
             json={
-                "model": "claude-sonnet-4-5",
+                "model": "claude-haiku-4-5-20251001",
                 "max_tokens": 1000,
                 "system": system,
                 "messages": [{"role": "user", "content": user_text}],
@@ -80,3 +80,69 @@ WORKOUT_KEYWORDS = [
 def looks_like_workout(text: str) -> bool:
     lower = text.lower()
     return any(kw in lower for kw in WORKOUT_KEYWORDS)
+
+
+QUESTION_KEYWORDS = [
+    "how much", "how many", "what should", "what can", "what's left",
+    "whats left", "am i on track", "did i", "have i", "should i",
+    "suggest", "recommend", "what to eat", "help me", "advice",
+    "remaining", "left for", "good for", "tips", "idea", "ideas",
+    "can i eat", "is it okay", "is it fine", "what if", "how do",
+    "best food", "best meal", "high protein", "low calorie", "low carb",
+    "?",
+]
+
+
+def looks_like_question(text: str) -> bool:
+    lower = text.lower()
+    return any(kw in lower for kw in QUESTION_KEYWORDS)
+
+
+async def answer_question(question: str, meals: list, workouts: list, totals: dict,
+                           targets: dict, api_key: str) -> str:
+    # Build a context summary of the user's day
+    meal_lines = "\n".join(
+        f"  - {m['food_name']}: {round(m['calories'])}kcal, Protein: {m['protein']}g, Carbs :{m['carbs']}g, Fat :{m['fat']}g"
+        for m in meals
+    ) or "  (nothing logged yet)"
+
+    workout_lines = "\n".join(
+        f"  - {w['description']}: -{round(w['calories_burned'])}kcal burned"
+        for w in workouts
+    ) or "  (no workouts logged yet)"
+
+    burned = totals.get("burned", 0)
+    net = totals.get("net_calories", totals["calories"])
+
+    context = f"""User profile: Female, 51kg, 160cm. Goal: lose 2-3kg in 2 months.
+
+Daily targets:
+- Calories: {targets['calories']} kcal (net)
+- Protein: {targets['protein']}g
+- Carbs: {targets['carbs']}g
+- Fat: {targets['fat']}g
+
+Today's food log:
+{meal_lines}
+
+Today's workouts:
+{workout_lines}
+
+Today's totals:
+- Calories eaten: {round(totals['calories'])} kcal
+- Calories burned: {round(burned)} kcal
+- Net calories: {round(net)} / {targets['calories']} kcal
+- Protein: {round(totals['protein'])}g / {targets['protein']}g
+- Carbs: {round(totals['carbs'])}g / {targets['carbs']}g
+- Fat: {round(totals['fat'])}g / {targets['fat']}g"""
+
+    system = """You are FuelBot, a friendly personal nutrition coach and fitness advisor.
+You have access to the user's meal log, workout log, and daily macro targets for today.
+Answer their question in a helpful, encouraging, concise way.
+Keep replies short — 3 to 6 sentences max unless a list is genuinely needed.
+When suggesting food, prioritise options available in Singapore (hawker food, supermarkets).
+Be specific with numbers when relevant. Never be preachy or lecture unnecessarily.
+Use a warm, casual tone — like a knowledgeable friend, not a doctor."""
+
+    user_msg = f"{context}\n\nUser question: {question}"
+    return await _call_claude(system, user_msg, api_key)
