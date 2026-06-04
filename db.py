@@ -23,6 +23,7 @@ def init_db():
             carbs       REAL DEFAULT 0,
             fat         REAL DEFAULT 0,
             logged_date TEXT NOT NULL,
+            batch_id    TEXT,
             logged_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -57,13 +58,13 @@ def _upsert_user(user_id: int):
     conn.close()
 
 
-def log_meal(user_id: int, meal: dict):
+def log_meal(user_id: int, meal: dict, batch_id: str = None):
     _upsert_user(user_id)
     today = date.today().isoformat()
     conn = get_conn()
     conn.execute("""
-        INSERT INTO meals (user_id, food_name, calories, protein, carbs, fat, logged_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO meals (user_id, food_name, calories, protein, carbs, fat, logged_date, batch_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         user_id,
         meal["food_name"],
@@ -72,6 +73,7 @@ def log_meal(user_id: int, meal: dict):
         meal.get("carbs", 0),
         meal.get("fat", 0),
         today,
+        batch_id,
     ))
     conn.commit()
     conn.close()
@@ -147,15 +149,20 @@ def undo_last_meal(user_id: int) -> str | None:
     today = date.today().isoformat()
     conn = get_conn()
     row = conn.execute("""
-        SELECT id, food_name FROM meals
+        SELECT batch_id, GROUP_CONCAT(food_name, ', ') as names
+        FROM meals
         WHERE user_id = ? AND logged_date = ?
-        ORDER BY logged_at DESC LIMIT 1
+        GROUP BY batch_id
+        ORDER BY MAX(logged_at) DESC LIMIT 1
     """, (user_id, today)).fetchone()
     if row:
-        conn.execute("DELETE FROM meals WHERE id = ?", (row["id"],))
+        conn.execute(
+            "DELETE FROM meals WHERE user_id = ? AND logged_date = ? AND batch_id = ?",
+            (user_id, today, row["batch_id"])
+        )
         conn.commit()
         conn.close()
-        return row["food_name"]
+        return row["names"]
     conn.close()
     return None
 
