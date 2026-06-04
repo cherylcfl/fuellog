@@ -27,8 +27,8 @@ SUMMARY_HOUR = int(os.environ.get("SUMMARY_HOUR", "21"))
 TIMEZONE = os.environ.get("TIMEZONE", "Asia/Singapore")
 
 DAILY_TARGETS = {
-    "calories": 1300,
-    "protein": 82,
+    "calories": 1400,
+    "protein": 100,
     "carbs": 130,
     "fat": 45,
 }
