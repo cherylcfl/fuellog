@@ -29,7 +29,7 @@ TIMEZONE = os.environ.get("TIMEZONE", "Asia/Singapore")
 
 DAILY_TARGETS = {
     "calories": 1300,
-    "protein": 82,
+    "protein": 100,
     "carbs": 130,
     "fat": 45,
 }
@@ -333,7 +333,7 @@ async def handle_meal(update, context, text, user_id):
 
     items_text = ""
     for m in meals_parsed:
-        items_text += f"\n• {m['food_name']}: {round(m['calories'])}kcal | P:{m['protein']}g C:{m['carbs']}g F:{m['fat']}g"
+        items_text += f"\n• {m['food_name']}: {round(m['calories'])}kcal | P:{m['protein']}g, C:{m['carbs']}g, F:{m['fat']}g"
 
     burned_note = f"\n_(Includes +{round(burned)} kcal workout bonus)_" if burned > 0 else ""
     status_line = (
@@ -344,9 +344,9 @@ async def handle_meal(update, context, text, user_id):
 
     await thinking.edit_text(
         f"✅ *Logged!*{items_text}\n\n"
-        f"*This meal:* {round(this_cal)} kcal | P: {round(this_pro)}g C: {round(this_carbs)}g F: {round(this_fat)}g\n\n"
-        f"*Net Calories today:* {round(net)} / {DAILY_TARGETS['calories']} kcal{burned_note}\n"
-        f"*Protein today:* {round(totals['protein'])}g / {DAILY_TARGETS['protein']}g\n"
+        f"🍽️ *This meal:* {round(this_cal)} kcal | P:{round(this_pro)}g, C:{round(this_carbs)}g, F:{round(this_fat)}g\n\n"
+        f"👉🏻 *Net today:* {round(net)} / {DAILY_TARGETS['calories']} kcal{burned_note}\n"
+        f"🍳 *Protein today:* {round(totals['protein'])}g / {DAILY_TARGETS['protein']}g\n\n"
         f"{status_line}",
         parse_mode="Markdown"
     )
@@ -444,7 +444,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     items_text = ""
     this_cal = this_pro = this_carbs = this_fat = 0
     for m in meals_parsed:
-        items_text += f"\n• {m['food_name']}: {round(m['calories'])}kcal | P:{m['protein']}g C:{m['carbs']}g F:{m['fat']}g"
+        items_text += f"\n• {m['food_name']}: {round(m['calories'])}kcal | P:{m['protein']}g, C:{m['carbs']}g, F:{m['fat']}g"
         this_cal += m["calories"]
         this_pro += m["protein"]
         this_carbs += m["carbs"]
@@ -459,8 +459,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await thinking.edit_text(
         f"📸 *Photo logged!*{items_text}\n\n"
-        f"*This meal:* {round(this_cal)} kcal | P:{round(this_pro)}g C:{round(this_carbs)}g F:{round(this_fat)}g\n\n"
-        f"*Net today:* {round(net)} / {DAILY_TARGETS['calories']} kcal{burned_note}\n"
+        f"🍽️ *This meal:* {round(this_cal)} kcal | P:{round(this_pro)}g, C:{round(this_carbs)}g, F:{round(this_fat)}g\n\n"
+        f"👉🏻 *Net today:* {round(net)} / {DAILY_TARGETS['calories']} kcal{burned_note}\n"
+        f"🍳 *Protein today:* {round(totals['protein'])}g / {DAILY_TARGETS['protein']}g\n\n"
         f"{status_line}\n\n"
         f"_Not accurate? Use /undo and type it out instead._",
         parse_mode="Markdown"
