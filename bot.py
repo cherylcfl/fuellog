@@ -15,7 +15,7 @@ from db import (
     undo_last_meal, undo_last_workout, clear_today,
     save_oura_token, get_oura_token, get_all_active_users
 )
-from ai import parse_meal, parse_workout, looks_like_workout
+from ai import parse_meal, parse_workout, looks_like_workout, looks_like_question, answer_question
 from oura import get_oura_calories
 
 logging.basicConfig(level=logging.INFO)
@@ -27,8 +27,8 @@ SUMMARY_HOUR = int(os.environ.get("SUMMARY_HOUR", "21"))
 TIMEZONE = os.environ.get("TIMEZONE", "Asia/Singapore")
 
 DAILY_TARGETS = {
-    "calories": 1400,
-    "protein": 100,
+    "calories": 1300,
+    "protein": 82,
     "carbs": 130,
     "fat": 45,
 }
@@ -275,11 +275,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text.strip()
 
-    # Route to workout or meal parser
-    if looks_like_workout(text):
+    # Route: question → coach, workout → fitness log, else → meal log
+    if looks_like_question(text):
+        await handle_question(update, context, text, user_id)
+    elif looks_like_workout(text):
         await handle_workout(update, context, text, user_id)
     else:
         await handle_meal(update, context, text, user_id)
+
+
+async def handle_question(update, context, text, user_id):
+    thinking = await update.message.reply_text("🤔 Let me check your log...")
+    try:
+        meals = get_today_meals(user_id)
+        workouts = get_today_workouts(user_id)
+        totals = get_today_totals(user_id)
+        reply = await answer_question(text, meals, workouts, totals, DAILY_TARGETS, ANTHROPIC_API_KEY)
+        await thinking.edit_text(reply)
+    except Exception as e:
+        logger.error(f"Question handler error: {e}")
+        await thinking.edit_text("❌ Couldn't answer that right now. Try again!")
 
 
 async def handle_meal(update, context, text, user_id):
