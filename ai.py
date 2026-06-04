@@ -47,7 +47,7 @@ async def _call_claude(system: str, user_text: str, api_key: str) -> str:
                 "content-type": "application/json",
             },
             json={
-                "model": "claude-sonnet-4-20250514",
+                "model": "claude-sonnet-4-5",
                 "max_tokens": 1000,
                 "system": system,
                 "messages": [{"role": "user", "content": user_text}],
@@ -73,7 +73,7 @@ WORKOUT_KEYWORDS = [
     "run", "ran", "walk", "walked", "gym", "workout", "exercise", "swim", "swam",
     "cycle", "cycling", "hiit", "yoga", "pilates", "cardio", "weights", "lifting",
     "training", "jog", "jogged", "class", "zumba", "crossfit", "spin", "rowing",
-    "climbed", "stairs", "min ", "mins ", "minutes", "hour", "km", "miles",
+    "climbed", "stairs", "min ", "mins ", "minutes", "hour", "km", "miles", "kg"
 ]
 
 
