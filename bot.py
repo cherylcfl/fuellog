@@ -1,5 +1,6 @@
 import os
 import logging
+import uuid
 from datetime import datetime, time
 import pytz
 import httpx
@@ -317,8 +318,9 @@ async def handle_meal(update, context, text, user_id):
         await thinking.edit_text("❌ Couldn't identify any food items. Try again!")
         return
 
+    batch_id = str(uuid.uuid4())
     for meal in meals_parsed:
-        log_meal(user_id, meal)
+        log_meal(user_id, meal, batch_id)
 
     totals = get_today_totals(user_id)
     net = totals["net_calories"]
@@ -333,7 +335,7 @@ async def handle_meal(update, context, text, user_id):
 
     items_text = ""
     for m in meals_parsed:
-        items_text += f"\n• {m['food_name']}: {round(m['calories'])}kcal | P:{m['protein']}g, C:{m['carbs']}g, F:{m['fat']}g"
+        items_text += f"\n• {m['food_name']}: {round(m['calories'])}kcal | P:{m['protein']}g C:{m['carbs']}g F:{m['fat']}g"
 
     burned_note = f"\n_(Includes +{round(burned)} kcal workout bonus)_" if burned > 0 else ""
     status_line = (
@@ -432,8 +434,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await thinking.edit_text("❌ Couldn't identify any food in that photo. Try a clearer shot or type it out!")
         return
 
+    batch_id = str(uuid.uuid4())
     for meal in meals_parsed:
-        log_meal(user_id, meal)
+        log_meal(user_id, meal, batch_id)
 
     totals = get_today_totals(user_id)
     net = totals["net_calories"]
@@ -444,7 +447,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     items_text = ""
     this_cal = this_pro = this_carbs = this_fat = 0
     for m in meals_parsed:
-        items_text += f"\n• {m['food_name']}: {round(m['calories'])}kcal | P:{m['protein']}g, C:{m['carbs']}g, F:{m['fat']}g"
+        items_text += f"\n• {m['food_name']}: {round(m['calories'])}kcal | P:{m['protein']}g C:{m['carbs']}g F:{m['fat']}g"
         this_cal += m["calories"]
         this_pro += m["protein"]
         this_carbs += m["carbs"]
