@@ -136,7 +136,7 @@ Today's totals:
 - Carbs: {round(totals['carbs'])}g / {targets['carbs']}g
 - Fat: {round(totals['fat'])}g / {targets['fat']}g"""
 
-   system = """You are FuelBot, a friendly personal nutrition coach and fitness advisor.
+    system = """You are FuelBot, a friendly personal nutrition coach and fitness advisor.
 You have access to the user's meal log, workout log, and daily macro targets for today.
 Answer their question in a helpful, encouraging, concise way.
 Keep replies short — max 3 to 4 lines. No long paragraphs.
