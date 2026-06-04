@@ -344,8 +344,9 @@ async def handle_meal(update, context, text, user_id):
 
     await thinking.edit_text(
         f"✅ *Logged!*{items_text}\n\n"
-        f"*This meal:* {round(this_cal)} kcal | P:{round(this_pro)}g C:{round(this_carbs)}g F:{round(this_fat)}g\n\n"
-        f"*Net today:* {round(net)} / {DAILY_TARGETS['calories']} kcal{burned_note}\n"
+        f"*This meal:* {round(this_cal)} kcal | P: {round(this_pro)}g C: {round(this_carbs)}g F: {round(this_fat)}g\n\n"
+        f"*Net Calories today:* {round(net)} / {DAILY_TARGETS['calories']} kcal{burned_note}\n"
+        f"*Protein today:* {round(totals['protein'])}g / {DAILY_TARGETS['protein']}g\n"
         f"{status_line}",
         parse_mode="Markdown"
     )
